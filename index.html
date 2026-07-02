@@ -126,11 +126,17 @@
     width:20px; height:20px; border-radius:50%; background:var(--amber); border:3px solid #1c1a12;
   }
 
-  .mp-value-row{ display:flex; justify-content:center; margin-bottom:12px;}
+  .mp-value-row{ display:flex; justify-content:center; align-items:center; gap:10px; margin-bottom:12px;}
   .mp-value{
     font-family:var(--mono); font-size:12px; color:var(--dim); letter-spacing:.03em;
   }
   .mp-value b{ color:var(--amber); font-weight:700;}
+  .upscale-toggle{
+    font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.05em;
+    color:var(--dim); background:#1d1d20; border:1px solid var(--line); border-radius:100px;
+    padding:4px 9px; cursor:pointer;
+  }
+  .upscale-toggle.active{ color:var(--amber); border-color:var(--amber-dim);}
 
   .bottom-row{
     display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
@@ -253,7 +259,8 @@
       <span class="end-label right" id="maxLabel">0.3MP</span>
     </div>
     <div class="mp-value-row">
-      <span class="mp-value">RESOLUTION <b id="mpValue">12.0MP</b></span>
+      <span class="mp-value">RESOLUTION <b id="mpValue">0.30MP</b></span>
+      <button class="upscale-toggle active" id="upscaleBtn" title="Save photos at normal picture size">UPSCALE</button>
     </div>
     <div class="bottom-row">
       <div class="mode-toggle" id="modeToggle">
@@ -314,12 +321,14 @@
   const viewerBack = document.getElementById('viewerBack');
   const viewerSave = document.getElementById('viewerSave');
   const retroBtn = document.getElementById('retroBtn');
+  const upscaleBtn = document.getElementById('upscaleBtn');
 
   let stream = null;
   let nativeW = 1280, nativeH = 960, nativeMP = 1.2288;
   let sideways = false;
   let mirrored = false;
   let retro = true; // CX70 (2004) style low-res encoder emulation
+  let upscaleOutput = true; // blow saved photos back up to a normal picture size
   let mode = 'photo';
   let recording = false;
   let recorder = null;
@@ -453,6 +462,12 @@
   });
   retroBtn.classList.add('active');
 
+  upscaleBtn.addEventListener('click', ()=>{
+    upscaleOutput = !upscaleOutput;
+    upscaleBtn.classList.toggle('active', upscaleOutput);
+    showToast(upscaleOutput ? 'Photos saved at normal size' : 'Photos saved at true tiny size');
+  });
+
   modeToggle.addEventListener('click', (e)=>{
     const btn = e.target.closest('button');
     if(!btn || recording) return;
@@ -487,16 +502,19 @@
     sctx.drawImage(offscreen, 0, 0, w, h); // offscreen already holds this exact frame from the last loop draw
 
     // the sensor capture above is tiny on purpose (that's the MP slider) — but a saved
-    // "photo" that's 40×30px is unusable outside this page, so blow it back up to a
-    // normal picture size, using nearest-neighbor so the low-res blockiness stays intact
-    // instead of turning into a blurry smudge.
-    const bigW = sideways ? nativeH : nativeW;
-    const bigH = sideways ? nativeW : nativeH;
-    const final = document.createElement('canvas');
-    final.width = bigW; final.height = bigH;
-    const fctx = final.getContext('2d');
-    fctx.imageSmoothingEnabled = false;
-    fctx.drawImage(shot, 0, 0, bigW, bigH);
+    // "photo" that's 40×30px is unusable outside this page, so (optionally) blow it back
+    // up to a normal picture size, using nearest-neighbor so the low-res blockiness stays
+    // intact instead of turning into a blurry smudge.
+    let final = shot, bigW = w, bigH = h;
+    if (upscaleOutput){
+      bigW = sideways ? nativeH : nativeW;
+      bigH = sideways ? nativeW : nativeH;
+      final = document.createElement('canvas');
+      final.width = bigW; final.height = bigH;
+      const fctx = final.getContext('2d');
+      fctx.imageSmoothingEnabled = false;
+      fctx.drawImage(shot, 0, 0, bigW, bigH);
+    }
 
     final.toBlob((blob)=>{
       const url = URL.createObjectURL(blob);
