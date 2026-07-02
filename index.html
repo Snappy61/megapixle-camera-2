@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>0.1MP</title>
+<title>0.01MP CX70</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -240,16 +240,16 @@
     <div class="toast" id="toast"></div>
 
     <div class="veil" id="veil">
-      <h2>FRONT CAMERA ACCESS</h2>
-      <p>This uses your front-facing camera only, locally in this page. Nothing is uploaded — captures save straight to your device.</p>
+      <h2>BACK CAMERA ACCESS</h2>
+      <p>Uses your rear camera, run through a low-res 2004-era phone camera emulation — nothing is uploaded, everything happens locally.</p>
       <button id="startBtn">Enable camera</button>
     </div>
   </div>
 
   <div class="controls">
     <div class="mp-row">
-      <span class="end-label">0.1MP</span>
-      <input type="range" class="mp-slider" id="mpSlider" min="0.1" max="12" step="0.1" value="12">
+      <span class="end-label">0.01MP</span>
+      <input type="range" class="mp-slider" id="mpSlider" min="0.01" max="12" step="0.01" value="12">
       <span class="end-label right" id="maxLabel">12MP</span>
     </div>
     <div class="mp-value-row">
@@ -263,7 +263,7 @@
       <div class="shutter-wrap">
         <button class="shutter" id="shutter"><span class="inner"></span></button>
       </div>
-      <button class="mirror-btn" id="mirrorBtn" title="Mirror preview">MIR</button>
+      <button class="mirror-btn" id="retroBtn" title="Toggle CX70 vintage look">CX70</button>
     </div>
   </div>
 </div>
@@ -313,11 +313,13 @@
   const viewerMeta = document.getElementById('viewerMeta');
   const viewerBack = document.getElementById('viewerBack');
   const viewerSave = document.getElementById('viewerSave');
+  const retroBtn = document.getElementById('retroBtn');
 
   let stream = null;
   let nativeW = 1280, nativeH = 960, nativeMP = 1.2288;
   let sideways = false;
-  let mirrored = true;
+  let mirrored = false;
+  let retro = true; // CX70 (2004) style low-res encoder emulation
   let mode = 'photo';
   let recording = false;
   let recorder = null;
@@ -330,6 +332,26 @@
   const offscreen = document.createElement('canvas');
   const octx = offscreen.getContext('2d');
 
+  // ---- CX70 (2004) emulation assets: grainy CMOS noise + a soft plastic-lens vignette ----
+  const noiseTile = document.createElement('canvas');
+  noiseTile.width = 48; noiseTile.height = 48;
+  (function buildNoise(){
+    const nctx = noiseTile.getContext('2d');
+    const id = nctx.createImageData(48,48);
+    for(let i=0;i<id.data.length;i+=4){
+      const v = 128 + (Math.random()-0.5)*180;
+      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
+    }
+    nctx.putImageData(id,0,0);
+  })();
+  const noisePattern = octx.createPattern(noiseTile, 'repeat');
+
+  function formatMP(mp){
+    if(mp < 0.1) return mp.toFixed(3)+'MP';
+    if(mp < 1) return mp.toFixed(2)+'MP';
+    return mp.toFixed(1)+'MP';
+  }
+
   function showToast(msg){
     toast.textContent = msg;
     toast.classList.add('show');
@@ -340,12 +362,12 @@
   async function start(){
     try{
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width:{ideal:1920}, height:{ideal:1440} },
+        video: { facingMode: { ideal: 'environment' }, width:{ideal:1920}, height:{ideal:1440} },
         audio: true
       });
     }catch(e){
       try{
-        stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'user'}, audio:false });
+        stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:{ideal:'environment'}}, audio:false });
       }catch(e2){
         veil.querySelector('h2').textContent = 'CAMERA UNAVAILABLE';
         veil.querySelector('p').textContent = 'Could not access the front camera (' + e2.name + '). Check your browser/site camera permission and try again.';
@@ -393,6 +415,12 @@
     // buffer at target w×h — this is what makes low MP values visibly blocky.
     offscreen.width = w; offscreen.height = h;
     octx.imageSmoothingEnabled = true;
+
+    // CX70 (2004): muddy CMOS color response, crushed contrast, cool-green cast, weak auto white balance
+    octx.filter = retro
+      ? 'saturate(0.55) contrast(1.28) brightness(1.12) sepia(0.18) hue-rotate(150deg)'
+      : 'none';
+
     octx.save();
     if (sideways){
       // rotate 90deg so the frame reads as if the phone were turned on its side
@@ -406,6 +434,26 @@
       octx.drawImage(video, 0, 0, w, h);
     }
     octx.restore();
+    octx.filter = 'none';
+
+    if (retro){
+      // cheap plastic-lens vignette
+      const vg = octx.createRadialGradient(w/2,h/2, Math.min(w,h)*0.15, w/2,h/2, Math.max(w,h)*0.72);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+      octx.globalCompositeOperation = 'multiply';
+      octx.fillStyle = vg;
+      octx.fillRect(0,0,w,h);
+
+      // grainy low-end CMOS sensor noise
+      octx.globalCompositeOperation = 'overlay';
+      octx.globalAlpha = 0.16;
+      octx.fillStyle = noisePattern;
+      octx.fillRect(0,0,w,h);
+
+      octx.globalAlpha = 1;
+      octx.globalCompositeOperation = 'source-over';
+    }
 
     destCanvas.width = w; destCanvas.height = h;
     destCtx.imageSmoothingEnabled = false;
@@ -417,13 +465,13 @@
     if (video.readyState >= 2){
       const {w,h,mp} = currentDims();
       drawFrame(pctx, preview, w, h);
-      readoutText.textContent = w+' × '+h+' · '+mp.toFixed(1)+'MP'+(sideways?' · SIDEWAYS':'');
+      readoutText.textContent = w+' × '+h+' · '+formatMP(mp)+(sideways?' · SIDEWAYS':'')+(retro?' · CX70':'');
     }
     rafId = requestAnimationFrame(loop);
   }
 
   function updateMpLabel(){
-    mpValue.textContent = parseFloat(mpSlider.value).toFixed(1)+'MP';
+    mpValue.textContent = formatMP(parseFloat(mpSlider.value));
   }
   mpSlider.addEventListener('input', updateMpLabel);
 
@@ -434,11 +482,12 @@
     showToast(sideways ? 'Sideways capture on' : 'Sideways capture off');
   });
 
-  mirrorBtn.addEventListener('click', ()=>{
-    mirrored = !mirrored;
-    mirrorBtn.classList.toggle('active', mirrored);
+  retroBtn.addEventListener('click', ()=>{
+    retro = !retro;
+    retroBtn.classList.toggle('active', retro);
+    showToast(retro ? 'CX70 emulation on' : 'CX70 emulation off');
   });
-  mirrorBtn.classList.add('active');
+  retroBtn.classList.add('active');
 
   modeToggle.addEventListener('click', (e)=>{
     const btn = e.target.closest('button');
@@ -478,8 +527,8 @@
         filename:'mp-photo-'+Date.now()+'.jpg' };
       addItem(entry);
       flashShutter();
-      showToast('Photo captured · '+mp.toFixed(1)+'MP');
-    }, 'image/jpeg', 0.92);
+      showToast('Photo captured · '+formatMP(mp));
+    }, 'image/jpeg', retro ? 0.32 : 0.92);
   }
 
   function flashShutter(){
@@ -509,10 +558,11 @@
     let mime = 'video/webm;codecs=vp9,opus';
     if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8,opus';
     if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+    const bitrateOpts = retro ? { videoBitsPerSecond: 180000 } : { videoBitsPerSecond: 6000000 };
     try{
-      recorder = new MediaRecorder(captureStream, { mimeType: mime });
+      recorder = new MediaRecorder(captureStream, Object.assign({ mimeType: mime }, bitrateOpts));
     }catch(e){
-      recorder = new MediaRecorder(captureStream);
+      recorder = new MediaRecorder(captureStream, bitrateOpts);
     }
     recorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
     recorder.onstop = ()=>{
@@ -521,7 +571,7 @@
       const entry = { type:'video', url, blob, w, h, mp, ts:Date.now(),
         filename:'mp-video-'+Date.now()+'.webm', poster:null };
       addItem(entry);
-      showToast('Video saved · '+mp.toFixed(1)+'MP');
+      showToast('Video saved · '+formatMP(mp));
     };
     recorder.start();
     recording = true;
@@ -537,7 +587,7 @@
     const mm = String(Math.floor(s/60)).padStart(2,'0');
     const ss = String(s%60).padStart(2,'0');
     const {w,h,mp} = currentDims();
-    readoutText.textContent = 'REC '+mm+':'+ss+' · '+w+'×'+h+' · '+mp.toFixed(1)+'MP';
+    readoutText.textContent = 'REC '+mm+':'+ss+' · '+w+'×'+h+' · '+formatMP(mp);
   }
 
   function stopRecording(){
@@ -581,7 +631,7 @@
       const media = it.type==='photo'
         ? '<img src="'+it.url+'">'
         : '<video src="'+it.url+'" muted></video><span class="play">▶</span>';
-      return '<div class="cell" data-i="'+i+'">'+media+'<span class="badge">'+it.mp.toFixed(1)+'MP</span></div>';
+      return '<div class="cell" data-i="'+i+'">'+media+'<span class="badge">'+formatMP(it.mp)+'</span></div>';
     }).join('');
     [...grid.children].forEach(cell=>{
       cell.addEventListener('click', ()=> openViewer(+cell.dataset.i));
@@ -595,7 +645,7 @@
     viewerMedia.innerHTML = it.type==='photo'
       ? '<img src="'+it.url+'">'
       : '<video src="'+it.url+'" controls autoplay playsinline loop></video>';
-    viewerMeta.textContent = it.w+'×'+it.h+' · '+it.mp.toFixed(1)+'MP · '+it.type.toUpperCase();
+    viewerMeta.textContent = it.w+'×'+it.h+' · '+formatMP(it.mp)+' · '+it.type.toUpperCase();
     viewerModal.classList.add('open');
   }
   viewerBack.addEventListener('click', ()=>{
