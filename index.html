@@ -339,11 +339,57 @@
 
   const offscreen = document.createElement('canvas');
   const octx = offscreen.getContext('2d');
+  const blockCanvas = document.createElement('canvas');
+  const blockCtx = blockCanvas.getContext('2d');
+
+  // fine sand-like grain tile, kept subtle and high-frequency so it reads as sensor
+  // noise/film grain rather than an obvious slapped-on texture
+  const noiseTile = document.createElement('canvas');
+  noiseTile.width = 40; noiseTile.height = 40;
+  (function buildNoise(){
+    const nctx = noiseTile.getContext('2d');
+    const id = nctx.createImageData(40,40);
+    for(let i=0;i<id.data.length;i+=4){
+      const v = 128 + (Math.random()-0.5)*150;
+      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
+    }
+    nctx.putImageData(id,0,0);
+  })();
+  const grainPattern = noiseTile.getContext('2d').createPattern(noiseTile, 'repeat');
 
   function formatMP(mp){
     if(mp < 0.1) return mp.toFixed(3)+'MP';
     if(mp < 1) return mp.toFixed(2)+'MP';
     return mp.toFixed(1)+'MP';
+  }
+
+  // Turns a tiny low-res source image into a normal-sized image that still reads as
+  // low quality: nearest-neighbor blow-up first (visible square pixels/blocks), then a
+  // blur pass to soften and bleed those block edges together, then a light grain pass.
+  // Used identically for the live preview and for saved photos so what you see matches
+  // what you get.
+  function retroStyle(srcCanvasOrImg, srcW, srcH, targetW, targetH, outCtx, outCanvas){
+    blockCanvas.width = targetW; blockCanvas.height = targetH;
+    blockCtx.imageSmoothingEnabled = false;
+    blockCtx.clearRect(0,0,targetW,targetH);
+    blockCtx.drawImage(srcCanvasOrImg, 0, 0, targetW, targetH);
+
+    const scale = targetW / srcW;
+    const blurPx = Math.min(10, Math.max(0.6, scale*0.4));
+
+    outCanvas.width = targetW; outCanvas.height = targetH;
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.clearRect(0,0,targetW,targetH);
+    outCtx.filter = `blur(${blurPx}px)`;
+    outCtx.drawImage(blockCanvas, 0, 0);
+    outCtx.filter = 'none';
+
+    outCtx.globalAlpha = 0.05;
+    outCtx.globalCompositeOperation = 'overlay';
+    outCtx.fillStyle = grainPattern;
+    outCtx.fillRect(0,0,targetW,targetH);
+    outCtx.globalAlpha = 1;
+    outCtx.globalCompositeOperation = 'source-over';
   }
 
   function showToast(msg){
