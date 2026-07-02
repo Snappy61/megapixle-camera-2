@@ -332,20 +332,6 @@
   const offscreen = document.createElement('canvas');
   const octx = offscreen.getContext('2d');
 
-  // ---- CX70 (2004) emulation assets: grainy CMOS noise + a soft plastic-lens vignette ----
-  const noiseTile = document.createElement('canvas');
-  noiseTile.width = 48; noiseTile.height = 48;
-  (function buildNoise(){
-    const nctx = noiseTile.getContext('2d');
-    const id = nctx.createImageData(48,48);
-    for(let i=0;i<id.data.length;i+=4){
-      const v = 128 + (Math.random()-0.5)*180;
-      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
-    }
-    nctx.putImageData(id,0,0);
-  })();
-  const noisePattern = octx.createPattern(noiseTile, 'repeat');
-
   function formatMP(mp){
     if(mp < 0.1) return mp.toFixed(3)+'MP';
     if(mp < 1) return mp.toFixed(2)+'MP';
@@ -416,9 +402,9 @@
     offscreen.width = w; offscreen.height = h;
     octx.imageSmoothingEnabled = true;
 
-    // CX70 (2004): muddy CMOS color response, crushed contrast, cool-green cast, weak auto white balance
+    // CX70 (2004): soft plastic-lens optics, slightly muted color, no crisp edges
     octx.filter = retro
-      ? 'saturate(0.55) contrast(1.28) brightness(1.12) sepia(0.18) hue-rotate(150deg)'
+      ? 'contrast(1.06) saturate(0.85) brightness(1.02) blur(0.5px)'
       : 'none';
 
     octx.save();
@@ -435,25 +421,6 @@
     }
     octx.restore();
     octx.filter = 'none';
-
-    if (retro){
-      // cheap plastic-lens vignette
-      const vg = octx.createRadialGradient(w/2,h/2, Math.min(w,h)*0.15, w/2,h/2, Math.max(w,h)*0.72);
-      vg.addColorStop(0, 'rgba(0,0,0,0)');
-      vg.addColorStop(1, 'rgba(0,0,0,0.55)');
-      octx.globalCompositeOperation = 'multiply';
-      octx.fillStyle = vg;
-      octx.fillRect(0,0,w,h);
-
-      // grainy low-end CMOS sensor noise
-      octx.globalCompositeOperation = 'overlay';
-      octx.globalAlpha = 0.16;
-      octx.fillStyle = noisePattern;
-      octx.fillRect(0,0,w,h);
-
-      octx.globalAlpha = 1;
-      octx.globalCompositeOperation = 'source-over';
-    }
 
     destCanvas.width = w; destCanvas.height = h;
     destCtx.imageSmoothingEnabled = false;
