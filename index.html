@@ -187,7 +187,7 @@
     flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:2px;
   }
   .cell{ position:relative; aspect-ratio:1; background:#111; overflow:hidden; cursor:pointer;}
-  .cell img, .cell video{ width:100%; height:100%; object-fit:cover;}
+  .cell img, .cell video{ width:100%; height:100%; object-fit:cover; image-rendering:pixelated;}
   .cell .badge{
     position:absolute; bottom:4px; left:4px; font-family:var(--mono); font-size:9px; color:#fff;
     background:rgba(0,0,0,.55); padding:2px 5px; border-radius:4px;
@@ -204,7 +204,7 @@
   }
   .viewer.open{ display:flex;}
   .viewer-media{ flex:1; display:flex; align-items:center; justify-content:center; min-height:0;}
-  .viewer-media img, .viewer-media video{ max-width:100%; max-height:100%;}
+  .viewer-media img, .viewer-media video{ max-width:100%; max-height:100%; image-rendering:pixelated;}
   .viewer-bar{
     display:flex; justify-content:space-between; align-items:center; padding:14px 18px calc(14px + env(safe-area-inset-bottom));
     border-top:1px solid var(--line);
@@ -260,7 +260,7 @@
     </div>
     <div class="mp-value-row">
       <span class="mp-value">RESOLUTION <b id="mpValue">0.30MP</b></span>
-      <button class="upscale-toggle active" id="upscaleBtn" title="Save photos at normal picture size">UPSCALE</button>
+      <button class="upscale-toggle active" id="upscaleBtn" title="Upscale to normal size when you save/share a photo">UPSCALE ON SAVE</button>
     </div>
     <div class="bottom-row">
       <div class="mode-toggle" id="modeToggle">
@@ -465,7 +465,7 @@
   upscaleBtn.addEventListener('click', ()=>{
     upscaleOutput = !upscaleOutput;
     upscaleBtn.classList.toggle('active', upscaleOutput);
-    showToast(upscaleOutput ? 'Photos saved at normal size' : 'Photos saved at true tiny size');
+    showToast(upscaleOutput ? 'Saves will be upscaled to normal size' : 'Saves will keep true tiny size');
   });
 
   modeToggle.addEventListener('click', (e)=>{
@@ -501,24 +501,15 @@
     sctx.imageSmoothingEnabled = false;
     sctx.drawImage(offscreen, 0, 0, w, h); // offscreen already holds this exact frame from the last loop draw
 
-    // the sensor capture above is tiny on purpose (that's the MP slider) — but a saved
-    // "photo" that's 40×30px is unusable outside this page, so (optionally) blow it back
-    // up to a normal picture size, using nearest-neighbor so the low-res blockiness stays
-    // intact instead of turning into a blurry smudge.
-    let final = shot, bigW = w, bigH = h;
-    if (upscaleOutput){
-      bigW = sideways ? nativeH : nativeW;
-      bigH = sideways ? nativeW : nativeH;
-      final = document.createElement('canvas');
-      final.width = bigW; final.height = bigH;
-      const fctx = final.getContext('2d');
-      fctx.imageSmoothingEnabled = false;
-      fctx.drawImage(shot, 0, 0, bigW, bigH);
-    }
+    // store the raw tiny sensor-resolution capture as-is. Whether it gets blown back up
+    // to a normal picture size happens later, at save/download time, based on whatever
+    // the UPSCALE toggle is set to *then* — not what it was set to when the shutter fired.
+    const bigW = sideways ? nativeH : nativeW;
+    const bigH = sideways ? nativeW : nativeH;
 
-    final.toBlob((blob)=>{
+    shot.toBlob((blob)=>{
       const url = URL.createObjectURL(blob);
-      const entry = { type:'photo', url, blob, w:bigW, h:bigH, mp, ts:Date.now(),
+      const entry = { type:'photo', url, blob, w, h, bigW, bigH, mp, ts:Date.now(),
         filename:'mp-photo-'+Date.now()+'.jpg' };
       addItem(entry);
       flashShutter();
@@ -654,11 +645,32 @@
     await saveToDevice(it);
   });
 
+  function upscalePhotoBlob(it){
+    return new Promise((resolve)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const c = document.createElement('canvas');
+        c.width = it.bigW; c.height = it.bigH;
+        const cctx = c.getContext('2d');
+        cctx.imageSmoothingEnabled = false; // nearest-neighbor keeps the blockiness instead of a blur
+        cctx.drawImage(img, 0, 0, it.bigW, it.bigH);
+        c.toBlob((blob)=> resolve(blob), 'image/jpeg', 0.92);
+      };
+      img.src = it.url;
+    });
+  }
+
   async function saveToDevice(it){
-    const file = new File([it.blob], it.filename, { type: it.blob.type });
+    let blob = it.blob;
+    let filename = it.filename;
+    if (it.type === 'photo' && upscaleOutput){
+      blob = await upscalePhotoBlob(it);
+      filename = filename.replace(/\.jpg$/, '-full.jpg');
+    }
+    const file = new File([blob], filename, { type: blob.type });
     if (navigator.canShare && navigator.canShare({ files:[file] })){
       try{
-        await navigator.share({ files:[file], title: it.filename });
+        await navigator.share({ files:[file], title: filename });
         showToast('Shared — choose "Save Image/Video" to add to Photos');
         return;
       }catch(err){
@@ -667,12 +679,12 @@
     }
     // fallback: plain download
     const a = document.createElement('a');
-    a.href = it.url;
-    a.download = it.filename;
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    showToast('Downloaded ' + it.filename);
+    showToast('Downloaded ' + filename);
   }
 
   // long-press / tap quick-save straight from the gallery grid thumbnail's badge area is skipped for simplicity;
