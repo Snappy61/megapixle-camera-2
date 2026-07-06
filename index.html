@@ -168,6 +168,7 @@
     border:1px solid var(--line); color:var(--dim); font-family:var(--mono); font-size:9px;
     display:flex; align-items:center; justify-content:center; cursor:pointer;
   }
+  .mirror-btn.small{ width:28px; height:28px; font-size:7px;}
   .mirror-btn.active{ color:var(--amber); border-color:var(--amber-dim);}
 
   /* ---------- gallery drawer ---------- */
@@ -260,7 +261,7 @@
     </div>
     <div class="mp-value-row">
       <span class="mp-value">RESOLUTION <b id="mpValue">0.30MP</b></span>
-      <button class="upscale-toggle active" id="ditherBtn" title="Toggle ordered dithering on saved photos">DITHER</button>
+      <button class="upscale-toggle active" id="styleBtn" title="Toggle between blurry and pixelated low-res look">BLUR</button>
     </div>
     <div class="bottom-row">
       <div class="mode-toggle" id="modeToggle">
@@ -270,7 +271,7 @@
       <div class="shutter-wrap">
         <button class="shutter" id="shutter"><span class="inner"></span></button>
       </div>
-      <button class="mirror-btn active" id="styleBtn" title="Toggle between pixelated and blurry low-res look">BLUR</button>
+      <button class="mirror-btn small" id="ditherBtn" title="Toggle ordered dithering on saved photos">DITHER</button>
     </div>
   </div>
 </div>
@@ -327,7 +328,7 @@
   let sideways = false;
   let mirrored = false;
   let styleMode = 'blur'; // 'blur' = soft/fuzzy low-res look, 'pixel' = blocky visible-pixel look
-  let ditherOn = true; // ordered dithering applied to saved photos
+  let ditherOn = false; // ordered dithering applied to saved photos
   let mode = 'photo';
   let recording = false;
   let recorder = null;
@@ -660,7 +661,14 @@
       return '<div class="cell" data-i="'+i+'">'+media+'<span class="badge">'+formatMP(it.mp)+'</span></div>';
     }).join('');
     [...grid.children].forEach(cell=>{
-      cell.addEventListener('click', ()=> openViewer(+cell.dataset.i));
+      cell.addEventListener('click', ()=>{
+        const it = items[+cell.dataset.i];
+        if (it.type === 'photo'){
+          saveToDevice(it);
+        } else {
+          openViewer(+cell.dataset.i);
+        }
+      });
     });
   }
 
