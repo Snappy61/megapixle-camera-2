@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>0.01MP CX70</title>
+<title>0.003MP Camera</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -38,6 +38,7 @@
     max-width:100%; max-height:100%;
     background:#000;
   }
+  #preview.pixel-mode{ image-rendering:pixelated; }
   .veil{
     position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:14px; text-align:center; padding:32px; background:#0a0a0b;
@@ -65,6 +66,12 @@
     background:rgba(0,0,0,.45); padding:5px 10px; border-radius:6px; white-space:nowrap;
     display:flex; align-items:center; gap:8px;
   }
+  .readout .rec-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--rec); display:none;
+    animation:blink 1s step-start infinite;
+  }
+  .readout.recording .rec-dot{display:inline-block;}
+  @keyframes blink{50%{opacity:.2;}}
 
   .toast{
     position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
@@ -119,12 +126,11 @@
     width:20px; height:20px; border-radius:50%; background:var(--amber); border:3px solid #1c1a12;
   }
 
-  .mp-value-row{ display:flex; justify-content:center; align-items:center; gap:10px; margin-bottom:8px;}
+  .mp-value-row{ display:flex; justify-content:center; align-items:center; gap:10px; margin-bottom:12px;}
   .mp-value{
     font-family:var(--mono); font-size:12px; color:var(--dim); letter-spacing:.03em;
   }
   .mp-value b{ color:var(--amber); font-weight:700;}
-  .toggle-row{ display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
   .upscale-toggle{
     font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.05em;
     color:var(--dim); background:#1d1d20; border:1px solid var(--line); border-radius:100px;
@@ -132,19 +138,18 @@
   }
   .upscale-toggle.active{ color:var(--amber); border-color:var(--amber-dim);}
 
-  /* pixelated low-MP look: crisp nearest-neighbor scaling instead of smooth blur */
-  body.pixel-mode #preview,
-  body.pixel-mode .gallery-btn img,
-  body.pixel-mode .cell img,
-  body.pixel-mode .viewer-media img{
-    image-rendering:pixelated;
-    image-rendering:-moz-crisp-edges;
-    image-rendering:crisp-edges;
-  }
-
   .bottom-row{
     display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
   }
+  .mode-toggle{
+    justify-self:start; display:flex; background:#1d1d20; border-radius:100px; padding:3px;
+    border:1px solid var(--line);
+  }
+  .mode-toggle button{
+    border:none; background:transparent; color:var(--dim); font-family:var(--mono); font-size:10px;
+    font-weight:500; letter-spacing:.05em; padding:7px 12px; border-radius:100px; cursor:pointer;
+  }
+  .mode-toggle button.active{ background:var(--amber); color:#161200; font-weight:700;}
 
   .shutter-wrap{ justify-self:center;}
   .shutter{
@@ -154,6 +159,9 @@
   .shutter .inner{
     width:100%; height:100%; border-radius:50%; background:var(--text); transition:all .15s ease;
   }
+  .shutter.video .inner{ background:var(--rec);}
+  .shutter.recording .inner{ border-radius:8px; width:46%; height:46%; background:var(--rec);}
+  .shutter.recording{ border-color:var(--rec);}
 
   .mirror-btn{
     justify-self:end; width:38px; height:38px; border-radius:50%; background:#1d1d20;
@@ -179,10 +187,14 @@
     flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:2px;
   }
   .cell{ position:relative; aspect-ratio:1; background:#111; overflow:hidden; cursor:pointer;}
-  .cell img{ width:100%; height:100%; object-fit:cover;}
+  .cell img, .cell video{ width:100%; height:100%; object-fit:cover;}
   .cell .badge{
     position:absolute; bottom:4px; left:4px; font-family:var(--mono); font-size:9px; color:#fff;
     background:rgba(0,0,0,.55); padding:2px 5px; border-radius:4px;
+  }
+  .cell .play{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:26px; height:26px;
+    border-radius:50%; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center;
   }
   .empty-state{ flex:1; display:flex; align-items:center; justify-content:center; color:var(--dim); font-family:var(--mono); font-size:12px;}
 
@@ -192,7 +204,7 @@
   }
   .viewer.open{ display:flex;}
   .viewer-media{ flex:1; display:flex; align-items:center; justify-content:center; min-height:0;}
-  .viewer-media img{ max-width:100%; max-height:100%;}
+  .viewer-media img, .viewer-media video{ max-width:100%; max-height:100%;}
   .viewer-bar{
     display:flex; justify-content:space-between; align-items:center; padding:14px 18px calc(14px + env(safe-area-inset-bottom));
     border-top:1px solid var(--line);
@@ -227,6 +239,7 @@
     </button>
 
     <div class="readout" id="readout">
+      <span class="rec-dot"></span>
       <span id="readoutText">-- × -- · 0.0MP</span>
     </div>
 
@@ -247,17 +260,17 @@
     </div>
     <div class="mp-value-row">
       <span class="mp-value">RESOLUTION <b id="mpValue">0.30MP</b></span>
-    </div>
-    <div class="toggle-row">
-      <button class="upscale-toggle active" id="upscaleBtn" title="Upscale to normal size when you save/share a photo">UPSCALE ON SAVE</button>
-      <button class="upscale-toggle active" id="styleBtn" title="Choose how low resolution looks: soft blur or hard pixels">STYLE · BLUR</button>
+      <button class="upscale-toggle active" id="ditherBtn" title="Toggle ordered dithering on saved photos">DITHER</button>
     </div>
     <div class="bottom-row">
-      <div></div>
+      <div class="mode-toggle" id="modeToggle">
+        <button class="active" data-mode="photo">PHOTO</button>
+        <button data-mode="video">VIDEO</button>
+      </div>
       <div class="shutter-wrap">
         <button class="shutter" id="shutter"><span class="inner"></span></button>
       </div>
-      <button class="mirror-btn" id="retroBtn" title="Toggle CX70 vintage look">CX70</button>
+      <button class="mirror-btn active" id="styleBtn" title="Toggle between pixelated and blurry low-res look">BLUR</button>
     </div>
   </div>
 </div>
@@ -294,6 +307,7 @@
   const mpSlider = document.getElementById('mpSlider');
   const mpValue = document.getElementById('mpValue');
   const maxLabel = document.getElementById('maxLabel');
+  const modeToggle = document.getElementById('modeToggle');
   const shutter = document.getElementById('shutter');
   const rotateBtn = document.getElementById('rotateBtn');
   const galleryBtn = document.getElementById('galleryBtn');
@@ -305,44 +319,60 @@
   const viewerMeta = document.getElementById('viewerMeta');
   const viewerBack = document.getElementById('viewerBack');
   const viewerSave = document.getElementById('viewerSave');
-  const retroBtn = document.getElementById('retroBtn');
-  const upscaleBtn = document.getElementById('upscaleBtn');
   const styleBtn = document.getElementById('styleBtn');
+  const ditherBtn = document.getElementById('ditherBtn');
 
   let stream = null;
   let nativeW = 1280, nativeH = 960, nativeMP = 1.2288;
   let sideways = false;
   let mirrored = false;
-  let retro = true; // CX70 (2004) style low-res encoder emulation
-  let upscaleOutput = true; // blow saved photos back up to a normal picture size
-  let pixelStyle = 'blur'; // 'blur' (soft, smoothed edges) or 'pixel' (hard, blocky edges)
+  let styleMode = 'blur'; // 'blur' = soft/fuzzy low-res look, 'pixel' = blocky visible-pixel look
+  let ditherOn = true; // ordered dithering applied to saved photos
+  let mode = 'photo';
+  let recording = false;
+  let recorder = null;
+  let chunks = [];
+  let recStart = 0;
+  let recTimer = null;
   let rafId = null;
   const items = []; // {type, url, blob, w, h, mp, ts}
 
   const offscreen = document.createElement('canvas');
   const octx = offscreen.getContext('2d');
-  const blockCanvas = document.createElement('canvas');
-  const blockCtx = blockCanvas.getContext('2d');
-
-  // fine sand-like grain tile, kept subtle and high-frequency so it reads as sensor
-  // noise/film grain rather than an obvious slapped-on texture
-  const noiseTile = document.createElement('canvas');
-  noiseTile.width = 40; noiseTile.height = 40;
-  (function buildNoise(){
-    const nctx = noiseTile.getContext('2d');
-    const id = nctx.createImageData(40,40);
-    for(let i=0;i<id.data.length;i+=4){
-      const v = 128 + (Math.random()-0.5)*150;
-      id.data[i]=v; id.data[i+1]=v; id.data[i+2]=v; id.data[i+3]=255;
-    }
-    nctx.putImageData(id,0,0);
-  })();
-  const grainPattern = noiseTile.getContext('2d').createPattern(noiseTile, 'repeat');
 
   function formatMP(mp){
     if(mp < 0.1) return mp.toFixed(3)+'MP';
     if(mp < 1) return mp.toFixed(2)+'MP';
     return mp.toFixed(1)+'MP';
+  }
+
+  const BAYER4 = [
+    [0,8,2,10],
+    [12,4,14,6],
+    [3,11,1,9],
+    [15,7,13,5]
+  ];
+
+  // classic ordered dithering: quantizes colors to a handful of levels but uses a
+  // repeating threshold pattern (instead of flat rounding) so it reads as a fine dotted
+  // dither pattern rather than smooth color banding — very old-digital-camera/GIF.
+  function ditherCanvas(ctx, w, h, levels){
+    levels = levels || 5;
+    const step = 255 / (levels - 1);
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    for (let y=0; y<h; y++){
+      for (let x=0; x<w; x++){
+        const t = (BAYER4[y & 3][x & 3] + 0.5) / 16 - 0.5;
+        const i = (y*w + x) * 4;
+        for (let c=0; c<3; c++){
+          const v = d[i+c] + t*step;
+          let q = Math.round(v/step) * step;
+          d[i+c] = q < 0 ? 0 : (q > 255 ? 255 : q);
+        }
+      }
+    }
+    ctx.putImageData(id, 0, 0);
   }
 
   function showToast(msg){
@@ -355,12 +385,17 @@
   async function start(){
     try{
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width:{ideal:1920}, height:{ideal:1440} }
+        video: { facingMode: { ideal: 'environment' }, width:{ideal:1920}, height:{ideal:1440} },
+        audio: true
       });
     }catch(e){
-      veil.querySelector('h2').textContent = 'CAMERA UNAVAILABLE';
-      veil.querySelector('p').textContent = 'Could not access the rear camera (' + e.name + '). Check your browser/site camera permission and try again.';
-      return;
+      try{
+        stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:{ideal:'environment'}}, audio:false });
+      }catch(e2){
+        veil.querySelector('h2').textContent = 'CAMERA UNAVAILABLE';
+        veil.querySelector('p').textContent = 'Could not access the front camera (' + e2.name + '). Check your browser/site camera permission and try again.';
+        return;
+      }
     }
     video.srcObject = stream;
     await video.play();
@@ -401,16 +436,16 @@
     offscreen.width = w; offscreen.height = h;
     octx.imageSmoothingEnabled = true;
 
-    // CX70 (2004): soft plastic-lens optics, slightly muted color.
-    // In BLUR style, blur strength scales with how low the MP slider is — the lower the
-    // resolution, the fuzzier the shot, same as a cheap sensor struggling in low detail.
-    // In PIXEL style we skip the blur entirely and let the tiny capture size + crisp
-    // (non-smoothed) upscaling on screen/save produce hard, blocky pixels instead.
-    const dims = currentDims();
-    const blurPx = (retro && pixelStyle==='blur') ? +(0.5 + (1 - dims.mp/0.3) * 1.8).toFixed(2) : 0;
-    octx.filter = retro
-      ? `contrast(1.06) saturate(0.85) brightness(1.02)${blurPx ? ` blur(${blurPx}px)` : ''}`
-      : 'none';
+    // In blur mode, bake in soft focus that gets stronger the lower the MP slider is set.
+    // In pixel mode, no blur is applied here — the blockiness instead comes from
+    // rendering the tiny buffer with pixelated CSS scaling (see preview.classList below).
+    if (styleMode === 'blur'){
+      const dims = currentDims();
+      const blurPx = +(0.5 + (1 - dims.mp/0.3) * 1.8).toFixed(2);
+      octx.filter = `blur(${blurPx}px)`;
+    } else {
+      octx.filter = 'none';
+    }
 
     octx.save();
     if (sideways){
@@ -437,7 +472,7 @@
     if (video.readyState >= 2){
       const {w,h,mp} = currentDims();
       drawFrame(pctx, preview, w, h);
-      readoutText.textContent = w+' × '+h+' · '+formatMP(mp)+(sideways?' · SIDEWAYS':'')+(retro?' · CX70':'');
+      readoutText.textContent = w+' × '+h+' · '+formatMP(mp)+(sideways?' · SIDEWAYS':'')+' · '+styleMode.toUpperCase();
     }
     rafId = requestAnimationFrame(loop);
   }
@@ -454,24 +489,26 @@
     showToast(sideways ? 'Sideways capture on' : 'Sideways capture off');
   });
 
-  retroBtn.addEventListener('click', ()=>{
-    retro = !retro;
-    retroBtn.classList.toggle('active', retro);
-    showToast(retro ? 'CX70 emulation on' : 'CX70 emulation off');
-  });
-  retroBtn.classList.add('active');
-
   styleBtn.addEventListener('click', ()=>{
-    pixelStyle = pixelStyle === 'blur' ? 'pixel' : 'blur';
-    styleBtn.textContent = pixelStyle === 'blur' ? 'STYLE · BLUR' : 'STYLE · PIXEL';
-    document.body.classList.toggle('pixel-mode', pixelStyle === 'pixel');
-    showToast(pixelStyle === 'blur' ? 'Low-res look: soft blur' : 'Low-res look: hard pixels');
+    styleMode = styleMode === 'blur' ? 'pixel' : 'blur';
+    styleBtn.textContent = styleMode.toUpperCase();
+    preview.classList.toggle('pixel-mode', styleMode === 'pixel');
+    showToast(styleMode === 'blur' ? 'Soft/blurry low-res look' : 'Blocky/pixelated low-res look');
   });
 
-  upscaleBtn.addEventListener('click', ()=>{
-    upscaleOutput = !upscaleOutput;
-    upscaleBtn.classList.toggle('active', upscaleOutput);
-    showToast(upscaleOutput ? 'Saves will be upscaled to normal size' : 'Saves will keep true tiny size');
+  ditherBtn.addEventListener('click', ()=>{
+    ditherOn = !ditherOn;
+    ditherBtn.classList.toggle('active', ditherOn);
+    showToast(ditherOn ? 'Dithering on' : 'Dithering off');
+  });
+
+  modeToggle.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if(!btn || recording) return;
+    [...modeToggle.children].forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    mode = btn.dataset.mode;
+    shutter.classList.toggle('video', mode==='video');
   });
 
   function addItem(entry){
@@ -485,7 +522,8 @@
       return;
     }
     const last = items[0];
-    galleryBtn.innerHTML = '<img src="'+last.url+'">'
+    const thumbSrc = last.type==='photo' ? last.url : (last.poster||'');
+    galleryBtn.innerHTML = (thumbSrc ? '<img src="'+thumbSrc+'">' : '<span class="empty">'+items.length+'</span>')
       + '<span class="count">'+items.length+'</span>';
   }
 
@@ -497,20 +535,26 @@
     sctx.imageSmoothingEnabled = true;
     sctx.drawImage(offscreen, 0, 0, w, h); // offscreen already holds this exact frame from the last loop draw
 
-    // store the raw tiny sensor-resolution capture as-is. Whether it gets blown back up
-    // to a normal picture size happens later, at save/download time, based on whatever
-    // the UPSCALE toggle is set to *then* — not what it was set to when the shutter fired.
+    // dither the TINY capture, not the upscaled one — that way each dither dot gets
+    // magnified along with everything else when the photo is scaled up, so the pattern
+    // stays clearly visible instead of getting smoothed away.
+    if (ditherOn){
+      ditherCanvas(sctx, w, h, 5);
+    }
+
+    // store the raw tiny sensor-resolution capture as-is; it always gets blown back up
+    // to a normal picture size at save/download time.
     const bigW = sideways ? nativeH : nativeW;
     const bigH = sideways ? nativeW : nativeH;
 
     shot.toBlob((blob)=>{
       const url = URL.createObjectURL(blob);
-      const entry = { type:'photo', url, blob, w, h, bigW, bigH, mp, pixelStyle, ts:Date.now(),
+      const entry = { type:'photo', url, blob, w, h, bigW, bigH, mp, ts:Date.now(),
         filename:'mp-photo-'+Date.now()+'.jpg' };
       addItem(entry);
       flashShutter();
       showToast('Photo captured · '+formatMP(mp));
-    }, 'image/jpeg', retro ? 0.32 : 0.92);
+    }, 'image/jpeg', 0.9);
   }
 
   function flashShutter(){
@@ -523,9 +567,70 @@
     });
   }
 
+  function startRecording(){
+    const {w,h,mp} = currentDims();
+    let captureStream;
+    try{
+      captureStream = preview.captureStream(30);
+    }catch(e){
+      showToast('Recording not supported here');
+      return;
+    }
+    // include mic audio if available
+    if (stream){
+      stream.getAudioTracks().forEach(t=>captureStream.addTrack(t));
+    }
+    chunks = [];
+    let mime = 'video/webm;codecs=vp9,opus';
+    if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8,opus';
+    if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+    const bitrateOpts = { videoBitsPerSecond: 2500000 };
+    try{
+      recorder = new MediaRecorder(captureStream, Object.assign({ mimeType: mime }, bitrateOpts));
+    }catch(e){
+      recorder = new MediaRecorder(captureStream, bitrateOpts);
+    }
+    recorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+    recorder.onstop = ()=>{
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const entry = { type:'video', url, blob, w, h, mp, ts:Date.now(),
+        filename:'mp-video-'+Date.now()+'.webm', poster:null };
+      addItem(entry);
+      showToast('Video saved · '+formatMP(mp));
+    };
+    recorder.start();
+    recording = true;
+    recStart = Date.now();
+    shutter.classList.add('recording');
+    readout.classList.add('recording');
+    recTimer = setInterval(updateRecTimer, 250);
+    updateRecTimer();
+  }
+
+  function updateRecTimer(){
+    const s = Math.floor((Date.now()-recStart)/1000);
+    const mm = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    const {w,h,mp} = currentDims();
+    readoutText.textContent = 'REC '+mm+':'+ss+' · '+w+'×'+h+' · '+formatMP(mp);
+  }
+
+  function stopRecording(){
+    if(recorder && recorder.state !== 'inactive') recorder.stop();
+    recording = false;
+    shutter.classList.remove('recording');
+    readout.classList.remove('recording');
+    clearInterval(recTimer);
+  }
+
   shutter.addEventListener('click', ()=>{
     if(!stream) return;
-    takePhoto();
+    if(mode === 'photo'){
+      takePhoto();
+    } else {
+      recording ? stopRecording() : startRecording();
+    }
   });
 
   startBtn.addEventListener('click', start);
@@ -542,13 +647,17 @@
   function renderGrid(){
     if(items.length === 0){
       grid.innerHTML = '';
+      grid.insertAdjacentHTML('beforebegin','');
       grid.style.display='flex';
       grid.innerHTML = '<div class="empty-state">Nothing captured yet</div>';
       return;
     }
     grid.style.display='grid';
     grid.innerHTML = items.map((it, i)=>{
-      return '<div class="cell" data-i="'+i+'"><img src="'+it.url+'"><span class="badge">'+formatMP(it.mp)+'</span></div>';
+      const media = it.type==='photo'
+        ? '<img src="'+it.url+'">'
+        : '<video src="'+it.url+'" muted></video><span class="play">▶</span>';
+      return '<div class="cell" data-i="'+i+'">'+media+'<span class="badge">'+formatMP(it.mp)+'</span></div>';
     }).join('');
     [...grid.children].forEach(cell=>{
       cell.addEventListener('click', ()=> openViewer(+cell.dataset.i));
@@ -559,8 +668,10 @@
   function openViewer(i){
     viewerIndex = i;
     const it = items[i];
-    viewerMedia.innerHTML = '<img src="'+it.url+'">';
-    viewerMeta.textContent = it.w+'×'+it.h+' · '+formatMP(it.mp)+' · PHOTO';
+    viewerMedia.innerHTML = it.type==='photo'
+      ? '<img src="'+it.url+'">'
+      : '<video src="'+it.url+'" controls autoplay playsinline loop></video>';
+    viewerMeta.textContent = it.w+'×'+it.h+' · '+formatMP(it.mp)+' · '+it.type.toUpperCase();
     viewerModal.classList.add('open');
   }
   viewerBack.addEventListener('click', ()=>{
@@ -581,9 +692,7 @@
         const c = document.createElement('canvas');
         c.width = it.bigW; c.height = it.bigH;
         const cctx = c.getContext('2d');
-        // smooth upscale reads as soft/fuzzy old-lens blur; disabling smoothing keeps
-        // the tiny capture's square pixels crisp and blocky when PIXEL style is chosen
-        cctx.imageSmoothingEnabled = (it.pixelStyle !== 'pixel');
+        cctx.imageSmoothingEnabled = (styleMode === 'blur'); // blur mode: smooth upscale bleeds it further; pixel mode: nearest-neighbor keeps hard visible squares
         cctx.drawImage(img, 0, 0, it.bigW, it.bigH);
         c.toBlob((blob)=> resolve(blob), 'image/jpeg', 0.92);
       };
@@ -594,7 +703,7 @@
   async function saveToDevice(it){
     let blob = it.blob;
     let filename = it.filename;
-    if (upscaleOutput){
+    if (it.type === 'photo'){
       blob = await upscalePhotoBlob(it);
       filename = filename.replace(/\.jpg$/, '-full.jpg');
     }
@@ -602,7 +711,7 @@
     if (navigator.canShare && navigator.canShare({ files:[file] })){
       try{
         await navigator.share({ files:[file], title: filename });
-        showToast('Shared — choose "Save Image" to add to Photos');
+        showToast('Shared — choose "Save Image/Video" to add to Photos');
         return;
       }catch(err){
         if (err && err.name === 'AbortError') return; // user cancelled share sheet
@@ -617,6 +726,12 @@
     a.remove();
     showToast('Downloaded ' + filename);
   }
+
+  // long-press / tap quick-save straight from the gallery grid thumbnail's badge area is skipped for simplicity;
+  // primary save path is the viewer's Save button plus the immediate post-capture toast.
+
+  // also let the immediate post-capture flash offer a quick save via double-tap on shutter result is out of scope —
+  // keep the flow simple: capture -> open camera roll -> tap thumbnail -> Save.
 
 })();
 </script>
