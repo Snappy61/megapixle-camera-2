@@ -256,7 +256,7 @@
   <div class="controls">
     <div class="mp-row">
       <span class="end-label">0.003MP</span>
-      <input type="range" class="mp-slider" id="mpSlider" min="0" max="30" step="1" value="30">
+      <input type="range" class="mp-slider" id="mpSlider" min="0" max="12" step="1" value="12">
       <span class="end-label right" id="maxLabel">0.3MP</span>
     </div>
     <div class="mp-value-row">
@@ -307,9 +307,13 @@
   const toast = document.getElementById('toast');
   const mpSlider = document.getElementById('mpSlider');
 
-  // discrete stops: 0.003, then every 0.010 up to 0.300 — the slider's value is just an
-  // index into this table, so it snaps between stops instead of gliding continuously.
-  const MP_NOTCHES = [0.003, ...Array.from({length:30}, (_,i)=> +(0.01*(i+1)).toFixed(2))];
+  // discrete stops: 0.003, then every 0.010 up to 0.100, then every 0.100 up to 0.300 —
+  // the slider's value is just an index into this table, so it snaps between stops.
+  const MP_NOTCHES = [
+    0.003,
+    ...Array.from({length:10}, (_,i)=> +(0.01*(i+1)).toFixed(2)),   // 0.010 .. 0.100
+    ...Array.from({length:2}, (_,i)=> +(0.10 + 0.10*(i+1)).toFixed(2)) // 0.200, 0.300
+  ];
   function getMP(){ return MP_NOTCHES[parseInt(mpSlider.value, 10)]; }
   const mpValue = document.getElementById('mpValue');
   const maxLabel = document.getElementById('maxLabel');
