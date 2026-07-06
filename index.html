@@ -392,7 +392,7 @@
     try{
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' }, width:{ideal:1920}, height:{ideal:1440} },
-        audio: true
+        audio: false
       });
     }catch(e){
       try{
@@ -582,13 +582,9 @@
       showToast('Recording not supported here');
       return;
     }
-    // include mic audio if available
-    if (stream){
-      stream.getAudioTracks().forEach(t=>captureStream.addTrack(t));
-    }
     chunks = [];
-    let mime = 'video/webm;codecs=vp9,opus';
-    if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8,opus';
+    let mime = 'video/webm;codecs=vp9';
+    if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8';
     if(!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
     const bitrateOpts = { videoBitsPerSecond: 2500000 };
     try{
