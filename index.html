@@ -256,7 +256,7 @@
   <div class="controls">
     <div class="mp-row">
       <span class="end-label">0.003MP</span>
-      <input type="range" class="mp-slider" id="mpSlider" min="0.003" max="0.3" step="0.001" value="0.3">
+      <input type="range" class="mp-slider" id="mpSlider" min="0" max="30" step="1" value="30">
       <span class="end-label right" id="maxLabel">0.3MP</span>
     </div>
     <div class="mp-value-row">
@@ -306,6 +306,11 @@
   const readout = document.getElementById('readout');
   const toast = document.getElementById('toast');
   const mpSlider = document.getElementById('mpSlider');
+
+  // discrete stops: 0.003, then every 0.010 up to 0.300 — the slider's value is just an
+  // index into this table, so it snaps between stops instead of gliding continuously.
+  const MP_NOTCHES = [0.003, ...Array.from({length:30}, (_,i)=> +(0.01*(i+1)).toFixed(2))];
+  function getMP(){ return MP_NOTCHES[parseInt(mpSlider.value, 10)]; }
   const mpValue = document.getElementById('mpValue');
   const maxLabel = document.getElementById('maxLabel');
   const modeToggle = document.getElementById('modeToggle');
@@ -423,7 +428,7 @@
   window.addEventListener('resize', resizePreviewCanvas);
 
   function currentDims(){
-    const mp = parseFloat(mpSlider.value);
+    const mp = getMP();
     const scale = Math.sqrt((mp*1e6) / (nativeW*nativeH));
     let w = Math.max(4, Math.round(nativeW*scale));
     let h = Math.max(4, Math.round(nativeH*scale));
@@ -479,7 +484,7 @@
   }
 
   function updateMpLabel(){
-    mpValue.textContent = formatMP(parseFloat(mpSlider.value));
+    mpValue.textContent = formatMP(getMP());
   }
   mpSlider.addEventListener('input', updateMpLabel);
 
