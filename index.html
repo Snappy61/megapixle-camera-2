@@ -482,7 +482,10 @@
     if (video.readyState >= 2){
       const {w,h,mp} = currentDims();
       drawFrame(pctx, preview, w, h);
-      readoutText.textContent = w+' × '+h+' · '+formatMP(mp)+(sideways?' · SIDEWAYS':'')+' · '+styleMode.toUpperCase();
+      if (ditherOn){
+        ditherCanvas(pctx, w, h, 5);
+      }
+      readoutText.textContent = w+' × '+h+' · '+formatMP(mp)+(sideways?' · SIDEWAYS':'')+' · '+styleMode.toUpperCase()+(ditherOn?' · DITHER':'');
     }
     rafId = requestAnimationFrame(loop);
   }
