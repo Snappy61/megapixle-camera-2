@@ -108,8 +108,14 @@
   }
 
   .mp-row{ display:flex; align-items:center; gap:10px; margin-bottom:6px;}
-  .mp-row .end-label{ font-family:var(--mono); font-size:10px; color:var(--dim); width:52px; flex-shrink:0;}
+  .mp-row .end-label{ font-family:var(--mono); font-size:10px; color:var(--dim); width:34px; flex-shrink:0;}
   .mp-row .end-label.right{ text-align:right;}
+  .extreme-btn{
+    font-family:var(--mono); font-size:8px; font-weight:600; letter-spacing:.02em;
+    color:var(--dim); background:#1d1d20; border:1px solid var(--line); border-radius:6px;
+    padding:5px 6px; cursor:pointer; flex-shrink:0;
+  }
+  .extreme-btn.active{ color:var(--amber); border-color:var(--amber-dim); background:#241d0e;}
   .mp-slider{
     -webkit-appearance:none; appearance:none; flex:1; height:28px; background:transparent; margin:0;
   }
@@ -255,8 +261,9 @@
 
   <div class="controls">
     <div class="mp-row">
-      <span class="end-label">0.00014MP</span>
-      <input type="range" class="mp-slider" id="mpSlider" min="0" max="13" step="1" value="13">
+      <button class="extreme-btn" id="extremeBtn" title="Force 0.00014MP">.00014</button>
+      <span class="end-label">0.003MP</span>
+      <input type="range" class="mp-slider" id="mpSlider" min="0" max="12" step="1" value="12">
       <span class="end-label right" id="maxLabel">0.3MP</span>
     </div>
     <div class="mp-value-row">
@@ -307,18 +314,18 @@
   const toast = document.getElementById('toast');
   const mpSlider = document.getElementById('mpSlider');
 
-  // discrete stops: 0.00014 at the very bottom, then 0.003, then every 0.010 up to
-  // 0.100, then every 0.100 up to 0.300 — the slider's value is just an index into this
-  // table, so it snaps between stops.
+  // discrete stops: 0.003, then every 0.010 up to 0.100, then every 0.100 up to 0.300 —
+  // the slider's value is just an index into this table, so it snaps between stops.
   const MP_NOTCHES = [
-    0.00014,
     0.003,
     ...Array.from({length:10}, (_,i)=> +(0.01*(i+1)).toFixed(2)),   // 0.010 .. 0.100
     ...Array.from({length:2}, (_,i)=> +(0.10 + 0.10*(i+1)).toFixed(2)) // 0.200, 0.300
   ];
-  function getMP(){ return MP_NOTCHES[parseInt(mpSlider.value, 10)]; }
+  let extremeMode = false; // overrides the slider entirely with a fixed 0.00014MP
+  function getMP(){ return extremeMode ? 0.00014 : MP_NOTCHES[parseInt(mpSlider.value, 10)]; }
   const mpValue = document.getElementById('mpValue');
   const maxLabel = document.getElementById('maxLabel');
+  const extremeBtn = document.getElementById('extremeBtn');
   const modeToggle = document.getElementById('modeToggle');
   const shutter = document.getElementById('shutter');
   const rotateBtn = document.getElementById('rotateBtn');
@@ -496,7 +503,20 @@
   function updateMpLabel(){
     mpValue.textContent = formatMP(getMP());
   }
-  mpSlider.addEventListener('input', updateMpLabel);
+  mpSlider.addEventListener('input', ()=>{
+    if (extremeMode){
+      extremeMode = false;
+      extremeBtn.classList.remove('active');
+    }
+    updateMpLabel();
+  });
+
+  extremeBtn.addEventListener('click', ()=>{
+    extremeMode = true;
+    extremeBtn.classList.add('active');
+    updateMpLabel();
+    showToast('Forced to 0.00014MP');
+  });
 
   rotateBtn.addEventListener('click', ()=>{
     sideways = !sideways;
