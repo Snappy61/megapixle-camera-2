@@ -108,7 +108,7 @@
   }
 
   .mp-row{ display:flex; align-items:center; gap:10px; margin-bottom:6px;}
-  .mp-row .end-label{ font-family:var(--mono); font-size:10px; color:var(--dim); width:34px; flex-shrink:0;}
+  .mp-row .end-label{ font-family:var(--mono); font-size:10px; color:var(--dim); width:52px; flex-shrink:0;}
   .mp-row .end-label.right{ text-align:right;}
   .mp-slider{
     -webkit-appearance:none; appearance:none; flex:1; height:28px; background:transparent; margin:0;
@@ -255,8 +255,8 @@
 
   <div class="controls">
     <div class="mp-row">
-      <span class="end-label">0.003MP</span>
-      <input type="range" class="mp-slider" id="mpSlider" min="0" max="12" step="1" value="12">
+      <span class="end-label">0.00014MP</span>
+      <input type="range" class="mp-slider" id="mpSlider" min="0" max="13" step="1" value="13">
       <span class="end-label right" id="maxLabel">0.3MP</span>
     </div>
     <div class="mp-value-row">
@@ -307,9 +307,11 @@
   const toast = document.getElementById('toast');
   const mpSlider = document.getElementById('mpSlider');
 
-  // discrete stops: 0.003, then every 0.010 up to 0.100, then every 0.100 up to 0.300 —
-  // the slider's value is just an index into this table, so it snaps between stops.
+  // discrete stops: 0.00014 at the very bottom, then 0.003, then every 0.010 up to
+  // 0.100, then every 0.100 up to 0.300 — the slider's value is just an index into this
+  // table, so it snaps between stops.
   const MP_NOTCHES = [
+    0.00014,
     0.003,
     ...Array.from({length:10}, (_,i)=> +(0.01*(i+1)).toFixed(2)),   // 0.010 .. 0.100
     ...Array.from({length:2}, (_,i)=> +(0.10 + 0.10*(i+1)).toFixed(2)) // 0.200, 0.300
@@ -351,6 +353,7 @@
   const octx = offscreen.getContext('2d');
 
   function formatMP(mp){
+    if(mp < 0.001) return mp.toFixed(5)+'MP';
     if(mp < 0.1) return mp.toFixed(3)+'MP';
     if(mp < 1) return mp.toFixed(2)+'MP';
     return mp.toFixed(1)+'MP';
